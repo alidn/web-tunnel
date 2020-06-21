@@ -14,6 +14,7 @@ async fn ws_route(
     ws::start(
         socketserver::WsServer {
             server_addr: server_addr.get_ref().clone(),
+            password: None,
         },
         &req,
         stream,
