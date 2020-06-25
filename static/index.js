@@ -2,6 +2,7 @@ const websocketURI =
   ((window.location.protocol === "https:" && "wss://") || "ws://") +
   window.location.host +
   "/ws/";
+// ws://127.0.0.1:5000/ws/
 
 let connection = new WebSocket(websocketURI);
 

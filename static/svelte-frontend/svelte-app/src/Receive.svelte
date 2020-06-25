@@ -1,0 +1,60 @@
+<script>
+  let code;
+  let blobs = [];
+  let link;
+  let linkElement;
+  const websocketURI = "ws://127.0.0.1:8000/ws/";
+
+  let connection = new WebSocket(websocketURI);
+
+  function generateLink() {
+    let fileBlob = new Blob(blobs, {
+      type: "image/png",
+    });
+    link = URL.createObjectURL(fileBlob);
+    console.log(linkElement.click, linkElement.href);
+    // TODO: find a better way
+    setTimeout(() => {
+      linkElement.click();
+    }, 500);
+  }
+
+  connection.onmessage = function (message) {
+    if (typeof message.data === "string") {
+      if (message.data.startsWith("/eof")) {
+        generateLink();
+      }
+    } else {
+      console.log(message.data.arrayBuffer());
+      blobs.push(message.data);
+    }
+  };
+  function receive() {
+    connection.send("/receive" + code);
+  }
+</script>
+
+<div class="flex items-center justify-center h-screen">
+  <div
+    class="relative bg-gray-100 rounded-lg shadow-2xl m-auto p-32 w-2/4 h-auto
+    text-center flex flex-col items-center justify-center ">
+    <label class="text-xl " for="code">Enter code</label>
+    <input
+      name="code"
+      type="number"
+      bind:value={code}
+      class="bg-white m-5 focus:outline-none focus:shadow-outline border
+      border-blue-300 rounded-lg py-2 px-4 block w-full appearance-none
+      leading-normal hover:border-indigo-700"
+      placeholder="12345" />
+    <a href={link} class="hidden" bind:this={linkElement} download="Download Link">Linasdf</a>
+    <button
+      on:click={receive}
+      class=" mt-5 active:outline-none focus:outline-none
+      focus:border-transparent active:bg-indigo-300 transition duration-200
+      ease-in-out rounded-lg w-40 p-1 hover:shadow-2xl border-transparent
+      text-xl bg-indigo-500 text-gray-100 transform hover:-translate-y-1">
+      Receive
+    </button>
+  </div>
+</div>
