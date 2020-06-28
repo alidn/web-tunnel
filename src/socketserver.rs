@@ -1,4 +1,4 @@
-use crate::server::{EndOfFile, Password, ReceiveRequest, SendRequest, Server};
+use crate::server::{Password, Server};
 use actix::*;
 use actix_http::ws::Item;
 use actix_web_actors::ws;
@@ -77,16 +77,7 @@ pub struct PasswordCorrect;
 
 pub struct PasswordWrong;
 
-pub struct FileChunk {
-    pub chunk: Bytes,
-    pub password: String,
-}
-
 impl actix::Message for PasswordWrong {
-    type Result = ();
-}
-
-impl actix::Message for FileChunk {
     type Result = ();
 }
 
@@ -125,15 +116,6 @@ impl Handler<StartSend> for WsServer {
     }
 }
 
-impl Handler<SendPassword> for WsServer {
-    type Result = ();
-
-    fn handle(&mut self, msg: SendPassword, ctx: &mut Self::Context) -> Self::Result {
-        self.password = Some(msg.password.to_string());
-        ctx.text(format!("/code{}", msg.password))
-    }
-}
-
 impl Handler<PasswordCorrect> for WsServer {
     type Result = ();
 
@@ -148,22 +130,6 @@ impl Handler<PasswordWrong> for WsServer {
     fn handle(&mut self, _msg: PasswordWrong, ctx: &mut Self::Context) -> Self::Result {
         self.password = None;
         ctx.text("/wrong");
-    }
-}
-
-impl Handler<EndOfFile> for WsServer {
-    type Result = ();
-
-    fn handle(&mut self, _msg: EndOfFile, ctx: &mut Self::Context) -> Self::Result {
-        ctx.text("/eof");
-    }
-}
-
-impl Handler<FileChunk> for WsServer {
-    type Result = ();
-
-    fn handle(&mut self, msg: FileChunk, ctx: &mut Self::Context) -> Self::Result {
-        ctx.binary(msg.chunk)
     }
 }
 
