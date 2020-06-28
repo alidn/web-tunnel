@@ -1,8 +1,68 @@
-use crate::server::{EndOfFile, ReceiveRequest, SendRequest, Server};
+use crate::server::{EndOfFile, Password, ReceiveRequest, SendRequest, Server};
 use actix::*;
 use actix_http::ws::Item;
 use actix_web_actors::ws;
 use bytes::Bytes;
+
+pub enum ClientMessage {
+    FileChunk(Bytes),
+    SendRequest,
+    ReceiveRequest(String),
+    EOF,
+    Undefined,
+}
+
+impl actix::Message for ClientMessage {
+    type Result = ();
+}
+
+pub struct WsServerMessage {
+    pub client_message: ClientMessage,
+    pub ws_addr: Addr<WsServer>,
+    pub password: Option<String>,
+}
+
+impl actix::Message for WsServerMessage {
+    type Result = ();
+}
+
+impl Handler<ClientMessage> for WsServer {
+    type Result = ();
+
+    fn handle(&mut self, msg: ClientMessage, ctx: &mut Self::Context) -> Self::Result {
+        match msg {
+            ClientMessage::FileChunk(chunk) => ctx.binary(chunk),
+            ClientMessage::EOF => ctx.text("/eof"),
+            _ => {}
+        }
+    }
+}
+
+impl From<ws::Message> for ClientMessage {
+    fn from(message: ws::Message) -> Self {
+        match message {
+            ws::Message::Binary(file_chunk) => ClientMessage::FileChunk(file_chunk),
+            ws::Message::Continuation(item) => match item {
+                Item::FirstText(file_chunk)
+                | Item::FirstBinary(file_chunk)
+                | Item::Continue(file_chunk)
+                | Item::Last(file_chunk) => ClientMessage::FileChunk(file_chunk),
+            },
+            ws::Message::Text(text_message) => {
+                if text_message.starts_with("/send") {
+                    ClientMessage::SendRequest
+                } else if text_message.starts_with("/receive") {
+                    ClientMessage::ReceiveRequest(text_message[8..].to_string())
+                } else if text_message.starts_with("/done") {
+                    ClientMessage::EOF
+                } else {
+                    ClientMessage::Undefined
+                }
+            }
+            _ => ClientMessage::Undefined,
+        }
+    }
+}
 
 pub struct WsServer {
     pub server_addr: Addr<Server>,
@@ -48,6 +108,15 @@ impl actix::Message for StartSend {
     type Result = ();
 }
 
+impl Handler<Password> for WsServer {
+    type Result = ();
+
+    fn handle(&mut self, msg: Password, ctx: &mut Self::Context) -> Self::Result {
+        self.password = Some(msg.0.to_string());
+        ctx.text(format!("/code{}", msg.0))
+    }
+}
+
 impl Handler<StartSend> for WsServer {
     type Result = ();
 
@@ -61,7 +130,7 @@ impl Handler<SendPassword> for WsServer {
 
     fn handle(&mut self, msg: SendPassword, ctx: &mut Self::Context) -> Self::Result {
         self.password = Some(msg.password.to_string());
-        ctx.text(msg.password.to_string())
+        ctx.text(format!("/code{}", msg.password))
     }
 }
 
@@ -101,62 +170,12 @@ impl Handler<FileChunk> for WsServer {
 impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WsServer {
     fn handle(&mut self, msg: Result<ws::Message, ws::ProtocolError>, ctx: &mut Self::Context) {
         if let Ok(message) = msg {
-            if let ws::Message::Text(text_message) = message {
-                if text_message.starts_with("/send") {
-                    self.server_addr.do_send(SendRequest {
-                        recipient_addr: ctx.address(),
-                    });
-                    println!("{}", text_message);
-                } else if text_message.starts_with("/receive") {
-                    self.password = Some(text_message[8..].to_string());
-                    self.server_addr.do_send(ReceiveRequest {
-                        recipient_addr: ctx.address(),
-                        password: text_message[8..].to_string(),
-                    });
-                    println!("{}", text_message);
-                } else if text_message.starts_with("/done") {
-                    self.server_addr
-                        .do_send(EndOfFile(self.password.clone().unwrap()));
-                    println!("{}", text_message);
-                } else {
-                    println!("Received unknown message");
-                }
-            } else if let ws::Message::Binary(binary_message) = message {
-                println!("Received a chunk");
-                self.server_addr.do_send(FileChunk {
-                    chunk: binary_message,
-                    password: self.password.clone().unwrap(),
-                });
-            } else if let ws::Message::Continuation(item) = message {
-                match item {
-                    Item::FirstText(binary_message) => {
-                        self.server_addr.do_send(FileChunk {
-                            chunk: binary_message,
-                            password: self.password.clone().unwrap(),
-                        });
-                    }
-                    Item::FirstBinary(binary_message) => {
-                        self.server_addr.do_send(FileChunk {
-                            chunk: binary_message,
-                            password: self.password.clone().unwrap(),
-                        });
-                    }
-                    Item::Continue(binary_message) => {
-                        self.server_addr.do_send(FileChunk {
-                            chunk: binary_message,
-                            password: self.password.clone().unwrap(),
-                        });
-                    }
-                    Item::Last(binary_message) => {
-                        self.server_addr.do_send(FileChunk {
-                            chunk: binary_message,
-                            password: self.password.clone().unwrap(),
-                        });
-                    }
-                }
-            } else {
-                println!("Message with unknown type")
-            }
+            let client_message = ClientMessage::from(message);
+            self.server_addr.do_send(WsServerMessage {
+                client_message,
+                ws_addr: ctx.address(),
+                password: self.password.clone()
+            });
         }
     }
 }
