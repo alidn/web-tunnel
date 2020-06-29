@@ -66,15 +66,15 @@
 
 <Tailwindcss />
 <Router>
-  <div>
+  <div class="bg-indigo-100">
     <header>
-      <div class="stripes">
-        <span />
-        <span />
-        <span />
-        <span />
-        <span />
-      </div>
+<!--      <div class="stripes">-->
+<!--        <span />-->
+<!--        <span />-->
+<!--        <span />-->
+<!--        <span />-->
+<!--        <span />-->
+<!--      </div>-->
     </header>
     <Route path="/">
       <Main />
