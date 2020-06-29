@@ -10,6 +10,7 @@ pub enum ClientMessage {
     ReceiveRequest(String),
     EOF,
     Undefined,
+    Metadata(String)
 }
 
 impl actix::Message for ClientMessage {
@@ -33,6 +34,7 @@ impl Handler<ClientMessage> for WsServer {
         match msg {
             ClientMessage::FileChunk(chunk) => ctx.binary(chunk),
             ClientMessage::EOF => ctx.text("/eof"),
+            ClientMessage::Metadata(metadata) => ctx.text(format!("/metadata{}", metadata)),
             _ => {}
         }
     }
@@ -55,6 +57,8 @@ impl From<ws::Message> for ClientMessage {
                     ClientMessage::ReceiveRequest(text_message[8..].to_string())
                 } else if text_message.starts_with("/done") {
                     ClientMessage::EOF
+                } else if text_message.starts_with("/metadata") {
+                    ClientMessage::Metadata(text_message[9..].to_string())
                 } else {
                     ClientMessage::Undefined
                 }

@@ -83,6 +83,11 @@ impl Handler<WsServerMessage> for Server {
                     },
                 );
             }
+            ClientMessage::Metadata(metadata) => {
+                if let Some(receiver) = self.get_receiver(msg.password.unwrap()) {
+                    receiver.do_send(ClientMessage::Metadata(metadata))
+                }
+            }
             ClientMessage::Undefined => {}
         };
     }
