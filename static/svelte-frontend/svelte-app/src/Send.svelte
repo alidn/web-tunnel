@@ -10,7 +10,7 @@
     let receivedCode = false;
     let uploadButtonMessage = "Upload a file";
 
-    const websocketURI = "ws://127.0.0.1:8000/ws/";
+    const websocketURI = `ws://${window.location.hostname}:${window.location.port}/ws/`;
 
     let connection = new WebSocket(websocketURI);
 
